@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Angry-GPT</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:24px}
+    textarea{width:100%;max-width:800px}
+    pre{white-space:pre-wrap;background:#f6f6f6;padding:12px;border-radius:6px}
+  </style>
+</head>
+<body>
+  <h1>Angry-GPT</h1>
+  <form id="chat-form">
+    <label for="message">Prompt:</label><br>
+    <textarea id="message" rows="4">Why are you so angry?</textarea><br>
+    <label for="tone">Tone:</label>
+    <select id="tone">
+      <option value="mean" selected>Mean</option>
+      <option value="sarcastic">Sarcastic</option>
+      <option value="blunt">Blunt</option>
+      <option value="neutral">Neutral</option>
+    </select>
+    <button type="submit">Send</button>
+  </form>
+
+  <h2>Response</h2>
+  <pre id="response">(response appears here)</pre>
+
+  <script>
+    const form = document.getElementById('chat-form');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const message = document.getElementById('message').value;
+      const tone = document.getElementById('tone').value;
+      const respEl = document.getElementById('response');
+      respEl.textContent = '...thinking...';
+      try {
+        const res = await fetch('./api/', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({message, tone})
+        });
+        const data = await res.json();
+        if (res.ok) {
+          respEl.textContent = data.reply;
+        } else {
+          respEl.textContent = 'Error: ' + (data.error || res.status);
+        }
+      } catch (err) {
+        respEl.textContent = 'Fetch error: ' + err.message;
+      }
+    });
+  </script>
+</body>
+</html>
