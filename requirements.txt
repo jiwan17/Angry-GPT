@@ -1,0 +1,6 @@
+Django==5.2.8
+aiohttp>=3.8.4
+asgiref>=3.8.1
+requests>=2.31.0
+# Optional / useful for local development
+uvicorn[standard]>=0.22.0
