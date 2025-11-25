@@ -101,10 +101,21 @@
     const copyBtn = document.getElementById('copy');
     const statusEl = document.getElementById('status');
 
-    clearBtn.addEventListener('click', () => {
+    clearBtn.addEventListener('click', async () => {
+      // Clear client UI and request server to clear session memory
       document.getElementById('message').value = '';
       respEl.textContent = '(response will appear here)';
       statusEl.textContent = 'idle';
+      try{
+        const res = await fetch('./api/clear/', {method: 'POST'});
+        if(res.ok){
+          statusEl.textContent = 'context cleared';
+        } else {
+          statusEl.textContent = 'clear failed';
+        }
+      }catch(e){
+        statusEl.textContent = 'network error';
+      }
     });
 
     copyBtn.addEventListener('click', async () => {

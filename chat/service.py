@@ -1,6 +1,7 @@
 import asyncio
 import json
 import aiohttp
+
 async def stream_ollama(prompt: str, tone: str = "mean"):
     url = "http://localhost:11434/api/generate"
     # Compose an instruction that adjusts tone while enforcing basic safety constraints.
