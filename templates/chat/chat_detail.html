@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .chat-wrap{display:flex;flex-direction:column;gap:12px}
+  .chat-messages{max-height:60vh;overflow:auto;padding:12px;border-radius:10px;background:#f8fafc}
+  .msg{padding:10px;border-radius:10px;margin-bottom:8px}
+  .msg.user{background:#eef2ff;text-align:right}
+  .msg.assistant{background:#fff}
+  .chat-controls{display:flex;gap:8px;align-items:center}
+  .chat-controls textarea{flex:1;min-height:80px}
+</style>
+
+<h1>{{ conversation.title|default:"Conversation" }}</h1>
+<p><a href="{% url 'chat-index' %}">Back</a> | <a href="{% url 'logout' %}">Logout</a></p>
+
+<div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
+  <form method="post" action="{% url 'chat-rename' conversation.id %}">{% csrf_token %}
+    <input name="title" placeholder="Rename conversation" value="{{ conversation.title }}">
+    <button type="submit">Rename</button>
+  </form>
+  <form method="post" action="{% url 'chat-delete' conversation.id %}" onsubmit="return confirm('Delete this conversation?');">{% csrf_token %}
+    <button type="submit">Delete</button>
+  </form>
+</div>
+
+<div class="chat-wrap">
+  <div id="messages" class="chat-messages">
+    {% for m in messages %}
+      <div class="msg {{ m.role }}"><strong>{{ m.role }}:</strong> {{ m.content }}</div>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <div class="chat-controls">
+      <textarea id="message" placeholder="Type your message..."></textarea>
+      <select id="tone">
+        <option value="mean">Mean</option>
+        <option value="sarcastic">Sarcastic</option>
+        <option value="blunt">Blunt</option>
+        <option value="neutral">Neutral</option>
+      </select>
+      <button id="send">Send</button>
+    </div>
+    <div id="status" style="font-size:12px;color:#6b7280;margin-top:8px">idle</div>
+  </div>
+</div>
+
+<script>
+const sendBtn = document.getElementById('send');
+const msgEl = document.getElementById('message');
+const messagesEl = document.getElementById('messages');
+const statusEl = document.getElementById('status');
+
+async function appendMessage(role, text){
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.innerHTML = '<strong>' + role + ':</strong> ' + text;
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+sendBtn.addEventListener('click', async ()=>{
+  const message = msgEl.value.trim();
+  if(!message) return;
+  const tone = document.getElementById('tone').value;
+  // append user message immediately
+  appendMessage('user', message);
+  msgEl.value = '';
+
+  statusEl.textContent = 'streaming...';
+
+  try{
+    const res = await fetch('{% url "chat-stream" %}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message, tone, conversation_id: {{ conversation.id }}})
+    });
+
+    if(!res.ok){
+      const err = await res.json();
+      alert(err.error || 'Error');
+      statusEl.textContent = 'error';
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let assistantText = '';
+
+    // Create a single assistant message element that we will update progressively
+    const assistantDiv = document.createElement('div');
+    assistantDiv.className = 'msg assistant';
+    assistantDiv.dataset.streaming = '1';
+    assistantDiv.innerHTML = '<strong>assistant:</strong> ';
+    messagesEl.appendChild(assistantDiv);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    while(true){
+      const {value, done} = await reader.read();
+      if(done) break;
+      const chunk = decoder.decode(value, {stream:true});
+      // SSE-formatted chunk(s): may contain multiple 'data: ' lines
+      const parts = chunk.split(/\r?\n\r?\n/);
+      for(const part of parts){
+        if(!part.trim()) continue;
+        const lines = part.split(/\r?\n/);
+        for(const line of lines){
+          if(line.startsWith('data:')){
+            const data = line.replace(/^data:\s?/, '');
+            assistantText += data;
+            assistantDiv.innerHTML = '<strong>assistant:</strong> ' + assistantText;
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+          } else if(line.startsWith('event: done')){
+            assistantDiv.dataset.streaming = '0';
+            statusEl.textContent = 'done';
+          } else if(line.startsWith('event: error')){
+            const err = line.replace(/^event:\s?error\s*\n?/, '');
+            assistantDiv.dataset.streaming = '0';
+            statusEl.textContent = 'error';
+            alert('Stream error: ' + err);
+          }
+        }
+      }
+    }
+  }catch(e){
+    alert('Stream error: ' + e.message);
+    statusEl.textContent = 'error';
+  }
+});
+</script>
+{% endblock %}
