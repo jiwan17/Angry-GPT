@@ -12,6 +12,69 @@
   .sidebar{background:#fff;padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(11,18,32,0.04);max-height:80vh;overflow:auto}
   .conv-item{padding:10px;border-radius:8px;border:1px solid transparent;margin-bottom:8px}
   .conv-item.active{border-color:#8b5cf6;background:linear-gradient(90deg,#f3e8ff,#fff)}
+  .rename-wrapper {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    .rename-form {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        width: 100%;
+        font-family: Arial, sans-serif;
+    }
+
+    .rename-input {
+        flex: 1;
+        padding: 10px 14px;
+        border: 1px solid #ccc;
+        border-radius: 10px;
+        font-size: 15px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .rename-input:focus {
+        border-color: #4f8cff;
+        box-shadow: 0 0 4px rgba(79, 140, 255, 0.5);
+        outline: none;
+    }
+
+    .rename-button {
+        padding: 10px 18px;
+        background: #2563eb; /* blue-600 */
+        color: #fff;
+        font-size: 15px;
+        font-weight: bold;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background 0.2s, box-shadow 0.2s;
+    }
+
+    .rename-button:hover {
+        background: #1d4ed8; /* blue-700 */
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
+
+    .delete-button {
+        padding: 10px 18px;
+        background: #dc2626; /* red-600 */
+        color: white;
+        font-size: 15px;
+        font-weight: bold;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background 0.2s, box-shadow 0.2s;
+    }
+
+    .delete-button:hover {
+        background: #b91c1c; /* red-700 */
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
 </style>
 
 <div style="display:flex;justify-content:space-between;align-items:center">
@@ -19,7 +82,7 @@
     <h1 style="margin:0">{{ conversation.title|default:"Conversation" }}</h1>
     <div style="color:#6b7280;font-size:13px">Conversation ID: {{ conversation.id }}</div>
   </div>
-  <div><a href="{% url 'chat-index' %}">Back</a> | <a href="{% url 'logout' %}">Logout</a></div>
+  <div><a href="{% url 'chat-index' %}" class="nav-back" >Back</a> | <a href="{% url 'logout' %}" class="nav-logout">Logout</a></div>
 </div>
 
 <div class="layout" style="margin-top:12px">
@@ -42,12 +105,25 @@
 
   <div>
     <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
-  <form method="post" action="{% url 'chat-rename' conversation.id %}">{% csrf_token %}
-    <input name="title" placeholder="Rename conversation" value="{{ conversation.title }}">
-    <button type="submit">Rename</button>
-  </form>
+      <div class="rename-wrapper">
+        <form method="post" action="{% url 'chat-rename' conversation.id %}" class="rename-form">
+            {% csrf_token %}
+    
+            <input 
+                name="title"
+                class="rename-input"
+                placeholder="Rename conversation"
+                value="{{ conversation.title }}"
+            >
+    
+            <button type="submit" class="rename-button">
+                Rename
+            </button>
+        </form>
+    </div>
+    
   <form method="post" action="{% url 'chat-delete' conversation.id %}" onsubmit="return confirm('Delete this conversation?');">{% csrf_token %}
-    <button type="submit">Delete</button>
+    <button type="submit" class="delete-button" >Delete</button>
   </form>
     </div>
 
