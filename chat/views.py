@@ -98,8 +98,10 @@ async def chat_stream(request):
         conv = None
         if conv_id:
             try:
-                conv = await sync_to_async(Conversation.objects.get)(pk=conv_id, user=request.user)
+                conv = await Conversation.objects.aget(pk=conv_id, user=request.user)
                 recent_msgs = await sync_to_async(list)(conv.messages.all())
+                # this is same as above
+                # recent_msgs = [msg async for msg in conv.messages.all().aiterator()]
                 lines = []
                 for m in recent_msgs:
                     label = 'User' if m.role == 'user' else 'Assistant'
@@ -117,10 +119,13 @@ async def chat_stream(request):
             try:
                 # If conversation exists, save the user's message first
                 if conv is not None:
-                    await sync_to_async(Message.objects.create)(conversation=conv, role='user', content=user_message)
+                    # await sync_to_async(Message.objects.create)(conversation=conv, role='user', content=user_message)
+                    await Message.objects.acreate(conversation=conv, role='user', content=user_message)
+                    
                     # Update conversation title to the latest user question (truncate to 200 chars)
                     try:
                         conv.title = (user_message or "").strip()[:200]
+                        # await conv.asave()
                         await sync_to_async(conv.save)()
                     except Exception:
                         pass
