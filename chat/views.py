@@ -73,7 +73,9 @@ def chat_detail(request, conv_id):
     except Conversation.DoesNotExist:
         return redirect('chat-index')
     messages = conv.messages.all()
-    return render(request, 'chat/chat_detail.html', {'conversation': conv, 'messages': messages})
+    # also provide the user's conversation list for the sidebar
+    convs = Conversation.objects.filter(user=request.user).order_by('-created_at')
+    return render(request, 'chat/chat_detail.html', {'conversation': conv, 'messages': messages, 'conversations': convs})
 
 
 @csrf_exempt
@@ -116,6 +118,12 @@ async def chat_stream(request):
                 # If conversation exists, save the user's message first
                 if conv is not None:
                     await sync_to_async(Message.objects.create)(conversation=conv, role='user', content=user_message)
+                    # Update conversation title to the latest user question (truncate to 200 chars)
+                    try:
+                        conv.title = (user_message or "").strip()[:200]
+                        await sync_to_async(conv.save)()
+                    except Exception:
+                        pass
 
                 async for token in stream_ollama(composed_user_prompt, tone=tone):
                     assistant_text += token
@@ -217,6 +225,12 @@ async def chat_api(request):
         # Persist messages if conversation is present; otherwise do not persist.
         if conv is not None:
             await sync_to_async(Message.objects.create)(conversation=conv, role='user', content=user_message)
+            # Update conversation title to the latest user question (truncate to 200 chars)
+            try:
+                conv.title = (user_message or "").strip()[:200]
+                await sync_to_async(conv.save)()
+            except Exception:
+                pass
             await sync_to_async(Message.objects.create)(conversation=conv, role='assistant', content=ai_reply)
 
         return JsonResponse({"reply": ai_reply, "conversation_id": conv_id})

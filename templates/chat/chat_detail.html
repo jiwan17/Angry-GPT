@@ -8,12 +8,40 @@
   .msg.assistant{background:#fff}
   .chat-controls{display:flex;gap:8px;align-items:center}
   .chat-controls textarea{flex:1;min-height:80px}
+  .layout{display:grid;grid-template-columns:300px 1fr;gap:18px}
+  .sidebar{background:#fff;padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(11,18,32,0.04);max-height:80vh;overflow:auto}
+  .conv-item{padding:10px;border-radius:8px;border:1px solid transparent;margin-bottom:8px}
+  .conv-item.active{border-color:#8b5cf6;background:linear-gradient(90deg,#f3e8ff,#fff)}
 </style>
 
-<h1>{{ conversation.title|default:"Conversation" }}</h1>
-<p><a href="{% url 'chat-index' %}">Back</a> | <a href="{% url 'logout' %}">Logout</a></p>
+<div style="display:flex;justify-content:space-between;align-items:center">
+  <div>
+    <h1 style="margin:0">{{ conversation.title|default:"Conversation" }}</h1>
+    <div style="color:#6b7280;font-size:13px">Conversation ID: {{ conversation.id }}</div>
+  </div>
+  <div><a href="{% url 'chat-index' %}">Back</a> | <a href="{% url 'logout' %}">Logout</a></div>
+</div>
 
-<div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
+<div class="layout" style="margin-top:12px">
+  <aside class="sidebar">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <strong>Your Conversations</strong>
+      <a href="{% url 'chat-new' %}">+ New</a>
+    </div>
+    {% for c in conversations %}
+      <a href="{% url 'chat-detail' c.id %}" style="text-decoration:none;color:inherit">
+        <div class="conv-item {% if c.id == conversation.id %}active{% endif %}">
+          <div style="font-weight:600">{{ c.title|default:'Conversation' }}</div>
+          <div style="color:#6b7280;font-size:12px">{{ c.created_at }}</div>
+        </div>
+      </a>
+    {% empty %}
+      <div>No conversations</div>
+    {% endfor %}
+  </aside>
+
+  <div>
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
   <form method="post" action="{% url 'chat-rename' conversation.id %}">{% csrf_token %}
     <input name="title" placeholder="Rename conversation" value="{{ conversation.title }}">
     <button type="submit">Rename</button>
@@ -21,27 +49,29 @@
   <form method="post" action="{% url 'chat-delete' conversation.id %}" onsubmit="return confirm('Delete this conversation?');">{% csrf_token %}
     <button type="submit">Delete</button>
   </form>
-</div>
-
-<div class="chat-wrap">
-  <div id="messages" class="chat-messages">
-    {% for m in messages %}
-      <div class="msg {{ m.role }}"><strong>{{ m.role }}:</strong> {{ m.content }}</div>
-    {% endfor %}
-  </div>
-
-  <div class="card">
-    <div class="chat-controls">
-      <textarea id="message" placeholder="Type your message..."></textarea>
-      <select id="tone">
-        <option value="mean">Mean</option>
-        <option value="sarcastic">Sarcastic</option>
-        <option value="blunt">Blunt</option>
-        <option value="neutral">Neutral</option>
-      </select>
-      <button id="send">Send</button>
     </div>
-    <div id="status" style="font-size:12px;color:#6b7280;margin-top:8px">idle</div>
+
+    <div class="chat-wrap">
+      <div id="messages" class="chat-messages">
+        {% for m in messages %}
+          <div class="msg {{ m.role }}"><strong>{{ m.role }}:</strong> {{ m.content }}</div>
+        {% endfor %}
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="chat-controls">
+          <textarea id="message" placeholder="Type your message..."></textarea>
+          <select id="tone">
+            <option value="mean">Mean</option>
+            <option value="sarcastic">Sarcastic</option>
+            <option value="blunt">Blunt</option>
+            <option value="neutral">Neutral</option>
+          </select>
+          <button id="send">Send</button>
+        </div>
+        <div id="status" style="font-size:12px;color:#6b7280;margin-top:8px">idle</div>
+      </div>
+    </div>
   </div>
 </div>
 
