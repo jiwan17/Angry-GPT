@@ -2,25 +2,59 @@
 {% block content %}
 <style>
   .chat-wrap{display:flex;flex-direction:column;gap:12px}
-  .chat-messages{max-height:60vh;overflow:auto;padding:12px;border-radius:10px;background:#f8fafc}
-  .msg{padding:10px;border-radius:10px;margin-bottom:8px}
-  .msg.user{background:#eef2ff;text-align:right}
-  .msg.assistant{background:#fff}
+  /* Make chat area take available vertical space and allow internal scrolling */
+  .chat-messages{overflow:auto;padding:12px;border-radius:10px;background:#071226;color:var(--text)}
+  .msg{padding:10px;border-radius:10px;margin-bottom:8px;color:var(--text)}
+  .msg.user{background:#1f2937;text-align:right;color:var(--text)}
+  .msg.assistant{background:#0b1220;color:var(--text)}
   .chat-controls{display:flex;gap:8px;align-items:center}
-  .chat-controls textarea{flex:1;min-height:80px}
-  .layout{display:grid;grid-template-columns:300px 1fr;gap:18px}
-  .sidebar{background:#fff;padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(11,18,32,0.04);max-height:80vh;overflow:auto}
+  .chat-controls textarea{flex:1;min-height:80px;background:transparent;color:var(--text);border:1px solid rgba(255,255,255,0.04);padding:10px;border-radius:8px}
+  .card{background:var(--card);padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
+  .message-composer{padding:8px}
+  .composer-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:12px}
+  .tone-select{padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text)}
+  .primary{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:white;padding:10px 14px;border-radius:10px;border:none;font-weight:600;cursor:pointer}
+  .ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted);padding:8px 10px;border-radius:10px;cursor:pointer}
+  /* Composer starts as a one-line input and grows with content */
+  .message-composer textarea{width:100%;height:40px;min-height:40px;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);resize:none;background:transparent;color:var(--text);font-size:15px;outline:none;overflow:hidden}
+  .message-composer textarea:focus{box-shadow:0 6px 18px rgba(139,92,246,0.08);border-color:rgba(139,92,246,0.18)}
+  .status{color:var(--muted)}
+  /* Layout: sidebar + main. Use full height and internal scrolling only. */
+  .layout{display:grid;grid-template-columns:300px 1fr;gap:18px;flex:1 1 auto;min-height:0}
+  .sidebar{background:var(--card);padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.6);overflow:auto;color:var(--text);min-height:0}
   .conv-item{padding:10px;border-radius:8px;border:1px solid transparent;margin-bottom:8px}
-  .conv-item.active{border-color:#8b5cf6;background:linear-gradient(90deg,#f3e8ff,#fff)}
+  .conv-item.active{border-color:rgba(139,92,246,0.2);background:linear-gradient(90deg,rgba(43,22,79,0.6),#0f1724)}
+  .conv-wrapper{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .conv-link{flex:1;text-decoration:none;color:inherit;display:block}
+  .menu-btn{background:transparent;border:none;color:var(--muted);font-size:18px;padding:6px;border-radius:6px;cursor:pointer}
+  .menu-popup{position:absolute;background:var(--card);border:1px solid rgba(255,255,255,0.04);box-shadow:0 8px 24px rgba(2,6,23,0.6);border-radius:8px;overflow:hidden;right:12px;z-index:30}
+  .menu-popup button{display:block;padding:8px 12px;width:100%;text-align:left;background:transparent;border:none;color:var(--text);cursor:pointer}
+  .menu-item{position:relative}
+
+  /* Make the chat column fill height and allow messages to scroll while composer stays pinned */
+  .layout > div:last-child{display:flex;flex-direction:column;min-height:0}
+  .chat-wrap{display:flex;flex-direction:column;gap:12px;flex:1 1 auto;min-height:0}
+  .chat-messages{flex:1 1 auto;min-height:0}
+  .message-composer{flex:0 0 auto}
 </style>
 
-<div style="display:flex;justify-content:space-between;align-items:center">
-  <div>
-    <h1 style="margin:0">{{ conversation.title|default:"Conversation" }}</h1>
-    <div style="color:#6b7280;font-size:13px">Conversation ID: {{ conversation.id }}</div>
+<!-- Modal for rename / delete -->
+<div id="modal-backdrop" style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;z-index:60">
+  <div style="position:absolute;inset:0;background:rgba(2,6,23,0.6)"></div>
+  <div class="modal" style="position:relative;z-index:70;min-width:320px;max-width:560px;background:var(--card);border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,0.03);box-shadow:0 12px 40px rgba(2,6,23,0.6);">
+    <h3 class="modal-title" style="margin:0 0 8px 0;font-size:16px">Modal</h3>
+    <p class="modal-message" style="color:var(--muted);margin:0 0 8px 0;display:none"></p>
+    <div class="modal-input-row" style="margin-bottom:12px">
+      <input id="modal-input" type="text" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text)" />
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button id="modal-cancel" class="ghost" type="button">Cancel</button>
+      <button id="modal-confirm" class="primary" type="button">Confirm</button>
+    </div>
   </div>
-  <div><a href="{% url 'chat-index' %}">Back</a> | <a href="{% url 'logout' %}">Logout</a></div>
 </div>
+
+<!-- Top quick links removed; using styled conversation header below -->
 
 <div class="layout" style="margin-top:12px">
   <aside class="sidebar">
@@ -29,47 +63,94 @@
       <a href="{% url 'chat-new' %}">+ New</a>
     </div>
     {% for c in conversations %}
-      <a href="{% url 'chat-detail' c.id %}" style="text-decoration:none;color:inherit">
-        <div class="conv-item {% if c.id == conversation.id %}active{% endif %}">
-          <div style="font-weight:600">{{ c.title|default:'Conversation' }}</div>
-          <div style="color:#6b7280;font-size:12px">{{ c.created_at }}</div>
+      <div class="conv-wrapper menu-item">
+        <a class="conv-link" href="{% url 'chat-detail' c.id %}">
+          <div class="conv-item {% if c.id == conversation.id %}active{% endif %}">
+            <div style="font-weight:600">{{ c.title|default:'Conversation' }}</div>
+            <div style="color:#6b7280;font-size:12px">{{ c.created_at }}</div>
+          </div>
+        </a>
+        <div class="conv-menu" data-id="{{ c.id }}" data-rename-url="{% url 'chat-rename' c.id %}" data-delete-url="{% url 'chat-delete' c.id %}">
+          <button class="menu-btn" aria-label="Open menu">⋯</button>
+          <div class="menu-popup" style="display:none">
+            <button class="menu-rename">Rename</button>
+            <button class="menu-delete">Delete</button>
+          </div>
         </div>
-      </a>
+      </div>
     {% empty %}
       <div>No conversations</div>
     {% endfor %}
   </aside>
 
   <div>
-    <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
-  <form method="post" action="{% url 'chat-rename' conversation.id %}">{% csrf_token %}
-    <input name="title" placeholder="Rename conversation" value="{{ conversation.title }}">
-    <button type="submit">Rename</button>
-  </form>
-  <form method="post" action="{% url 'chat-delete' conversation.id %}" onsubmit="return confirm('Delete this conversation?');">{% csrf_token %}
-    <button type="submit">Delete</button>
-  </form>
+    <style>
+      .conversation-header{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+      .conversation-title{font-size:18px;font-weight:700;margin:0}
+      .conversation-meta{color:var(--muted);font-size:13px}
+      .conv-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+      .rename-form{display:flex;gap:8px;align-items:center}
+      .rename-input{padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text)}
+      .rename-btn{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--text);padding:8px 10px;border-radius:10px;cursor:pointer}
+      .delete-btn{background:transparent;border:1px solid rgba(255,0,0,0.12);color:#ff8b8b;padding:8px 10px;border-radius:10px;cursor:pointer}
+
+      /* Message bubble layout */
+      .msg{display:flex;margin-bottom:10px}
+      .msg .bubble{max-width:78%;padding:12px;border-radius:12px;word-break:break-word}
+      .msg.user{justify-content:flex-end}
+      .msg.user .bubble{background:#172033;color:var(--text);border-bottom-right-radius:4px}
+      .msg.assistant{justify-content:flex-start}
+      .msg.assistant .bubble{background:#0f1724;color:var(--text);border-bottom-left-radius:4px}
+      .bubble .meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:12px;color:var(--muted)}
+      .bubble .content{font-size:15px;line-height:1.4}
+    </style>
+
+    <div class="conversation-header">
+      <div>
+        <h1 class="conversation-title">{{ conversation.title|default:"Conversation" }}</h1>
+        <div class="conversation-meta">Conversation ID: {{ conversation.id }}</div>
+      </div>
+      <div class="conv-actions">
+        <form class="rename-form" method="post" action="{% url 'chat-rename' conversation.id %}">{% csrf_token %}
+          <input class="rename-input" name="title" placeholder="Rename..." value="{{ conversation.title }}">
+          <button class="rename-btn" type="submit">Save</button>
+        </form>
+        <form method="post" action="{% url 'chat-delete' conversation.id %}" onsubmit="return confirm('Delete this conversation?');">{% csrf_token %}
+          <button class="delete-btn" type="submit">Delete</button>
+        </form>
+      </div>
     </div>
 
     <div class="chat-wrap">
-      <div id="messages" class="chat-messages">
+      <div id="messages" class="chat-messages" data-conversation-id="{{ conversation.id }}">
         {% for m in messages %}
-          <div class="msg {{ m.role }}"><strong>{{ m.role }}:</strong> {{ m.content }}</div>
+          <div class="msg {{ m.role }}">
+            <div class="bubble">
+              <div class="meta"><span class="role">{{ m.role|capfirst }}</span><span class="time">{{ m.created_at|date:"Y-m-d H:i" }}</span></div>
+              <div class="content">{{ m.content|linebreaksbr }}</div>
+            </div>
+          </div>
         {% endfor %}
       </div>
 
-      <div class="card" style="margin-top:12px">
-        <div class="chat-controls">
-          <textarea id="message" placeholder="Type your message..."></textarea>
-          <select id="tone">
-            <option value="mean">Mean</option>
-            <option value="sarcastic">Sarcastic</option>
-            <option value="blunt">Blunt</option>
-            <option value="neutral">Neutral</option>
-          </select>
-          <button id="send">Send</button>
+      <div class="card message-composer" style="margin-top:12px">
+        <div class="composer-top">
+          <div style="display:flex;align-items:center;gap:8px">
+            <label for="tone" style="font-size:13px;color:var(--muted);margin-right:6px">Tone</label>
+            <select id="tone" class="tone-select">
+              <option value="mean">Mean</option>
+              <option value="sarcastic">Sarcastic</option>
+              <option value="blunt">Blunt</option>
+              <option value="neutral">Neutral</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button id="clear" class="ghost" type="button">Clear</button>
+            <button id="send" class="primary" type="button">Send&nbsp;➤</button>
+          </div>
         </div>
-        <div id="status" style="font-size:12px;color:#6b7280;margin-top:8px">idle</div>
+        <textarea id="message" placeholder="Type your message... (Shift+Enter for newline, Enter to send)"></textarea>
+        <div id="status" class="status" style="font-size:12px;margin-top:8px">idle</div>
       </div>
     </div>
   </div>
@@ -80,6 +161,146 @@ const sendBtn = document.getElementById('send');
 const msgEl = document.getElementById('message');
 const messagesEl = document.getElementById('messages');
 const statusEl = document.getElementById('status');
+
+// Auto-resize textarea (starts as one-line, expands upward)
+function autosizeTextarea(el){
+  el.style.height = 'auto';
+  const newHeight = Math.min(el.scrollHeight, 360); // cap max height
+  el.style.height = newHeight + 'px';
+  // keep messages scrolled to bottom
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+msgEl.addEventListener('input', ()=>autosizeTextarea(msgEl));
+// initialize
+autosizeTextarea(msgEl);
+
+// Conversation item menu handling (rename/delete)
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
+
+document.querySelectorAll('.menu-item').forEach(item => {
+  const btn = item.querySelector('.menu-btn');
+  const popup = item.querySelector('.menu-popup');
+  const menu = item.querySelector('.conv-menu');
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    // toggle
+    const visible = popup.style.display === 'block';
+    // close all
+    document.querySelectorAll('.menu-popup').forEach(p=>p.style.display='none');
+    popup.style.display = visible ? 'none' : 'block';
+  });
+  // Rename: open modal
+  const renameBtn = item.querySelector('.menu-rename');
+  if(renameBtn){
+    renameBtn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      popup.style.display = 'none';
+      const titleEl = item.querySelector('.conv-item > div');
+      const currentTitle = titleEl ? titleEl.textContent.trim() : '';
+      const modal = document.getElementById('modal-backdrop');
+      modal.dataset.mode = 'rename';
+      modal.dataset.url = menu.dataset.renameUrl;
+      modal.dataset.itemId = menu.dataset.id;
+      modal.querySelector('.modal-title').textContent = 'Rename conversation';
+      const input = modal.querySelector('#modal-input');
+      input.value = currentTitle;
+      modal.querySelector('.modal-message').style.display = 'none';
+      modal.querySelector('.modal-input-row').style.display = 'block';
+      modal.style.display = 'flex';
+      input.focus();
+    });
+  }
+  // Delete: open confirm modal
+  const deleteBtn = item.querySelector('.menu-delete');
+  if(deleteBtn){
+    deleteBtn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      popup.style.display = 'none';
+      const titleEl = item.querySelector('.conv-item > div');
+      const currentTitle = titleEl ? titleEl.textContent.trim() : '';
+      const modal = document.getElementById('modal-backdrop');
+      modal.dataset.mode = 'delete';
+      modal.dataset.url = menu.dataset.deleteUrl;
+      modal.dataset.itemId = menu.dataset.id;
+      modal.querySelector('.modal-title').textContent = 'Delete conversation';
+      modal.querySelector('.modal-message').textContent = `Delete "${currentTitle}"? This cannot be undone.`;
+      modal.querySelector('.modal-message').style.display = 'block';
+      modal.querySelector('.modal-input-row').style.display = 'none';
+      modal.style.display = 'flex';
+    });
+  }
+});
+
+// close menus when clicking outside
+document.addEventListener('click', ()=> document.querySelectorAll('.menu-popup').forEach(p=>p.style.display='none'));
+
+// Modal actions
+const modal = document.getElementById('modal-backdrop');
+const modalInput = document.getElementById('modal-input');
+const modalConfirm = document.getElementById('modal-confirm');
+const modalCancel = document.getElementById('modal-cancel');
+
+modalCancel.addEventListener('click', ()=>{ modal.style.display='none'; });
+
+modalConfirm.addEventListener('click', async ()=>{
+  const mode = modal.dataset.mode;
+  const url = modal.dataset.url;
+  const itemId = modal.dataset.itemId;
+  if(!url) return;
+  if(mode === 'rename'){
+    const newTitle = modalInput.value.trim();
+    if(!newTitle) return alert('Title cannot be empty');
+    const form = new FormData(); form.append('title', newTitle);
+    try{
+      const res = await fetch(url, {method:'POST', headers:{'X-CSRFToken': csrftoken}, body: form});
+      if(res.ok){
+        // update the title in the sidebar if present
+        const menuItem = document.querySelector('.conv-menu[data-id="'+itemId+'"]');
+        if(menuItem){
+          const titleEl = menuItem.closest('.menu-item').querySelector('.conv-item > div');
+          if(titleEl) titleEl.textContent = newTitle;
+        }
+        modal.style.display='none';
+      } else {
+        alert('Rename failed');
+      }
+    }catch(err){alert('Rename error: '+err.message)}
+  } else if(mode === 'delete'){
+    try{
+      const res = await fetch(url, {method:'POST', headers:{'X-CSRFToken': csrftoken}});
+      if(res.ok){
+        // if deleting current conversation, redirect to index
+        const currentId = messagesEl.dataset.conversationId;
+        if(itemId && currentId && String(itemId) === String(currentId)){
+          window.location.href = '{% url "chat-index" %}';
+        } else {
+          // remove the sidebar item
+          const menuItem = document.querySelector('.conv-menu[data-id="'+itemId+'"]');
+          if(menuItem){
+            const wrapper = menuItem.closest('.menu-item');
+            if(wrapper) wrapper.remove();
+          }
+        }
+      } else {
+        alert('Delete failed');
+      }
+    }catch(err){alert('Delete error: '+err.message)}
+  }
+});
 
 async function appendMessage(role, text){
   const div = document.createElement('div');
@@ -99,11 +320,12 @@ sendBtn.addEventListener('click', async ()=>{
 
   statusEl.textContent = 'streaming...';
 
-  try{
+    try{
+    const convId = messagesEl.dataset.conversationId || null;
     const res = await fetch('{% url "chat-stream" %}', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message, tone, conversation_id: {{ conversation.id }}})
+      body: JSON.stringify({message, tone, conversation_id: convId})
     });
 
     if(!res.ok){
@@ -157,5 +379,21 @@ sendBtn.addEventListener('click', async ()=>{
     statusEl.textContent = 'error';
   }
 });
+
+// Enter-to-send (press Enter to send, Shift+Enter for newline)
+msgEl.addEventListener('keydown', function(e){
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    sendBtn.click();
+  }
+});
+
+// Clear composer quickly
+document.getElementById('clear').addEventListener('click', function(){
+  msgEl.value = '';
+  msgEl.focus();
+  statusEl.textContent = 'idle';
+});
+
 </script>
 {% endblock %}
