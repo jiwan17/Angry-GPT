@@ -3,10 +3,10 @@
 <style>
   .chat-wrap{display:flex;flex-direction:column;gap:12px}
   /* Make chat area take available vertical space and allow internal scrolling */
-  .chat-messages{overflow:auto;padding:12px;border-radius:10px;background:#071226;color:var(--text);max-height:calc(100vh - 360px)}
+  .chat-messages{overflow:auto;padding:12px;border-radius:10px;background:#0d0d0e —;color:var(--text);max-height:calc(100vh - 360px)}
   .msg{padding:10px;border-radius:10px;margin-bottom:8px;color:var(--text)}
-  .msg.user{background:#1f2937;text-align:right;color:var(--text)}
-  .msg.assistant{background:#0b1220;color:var(--text)}
+  .msg.user{text-align:right;color:var(--text)}
+  .msg.assistant{color:var(--text)}
   .chat-controls{display:flex;gap:8px;align-items:center}
   .chat-controls textarea{flex:1;min-height:80px;background:transparent;color:var(--text);border:1px solid rgba(255,255,255,0.04);padding:10px;border-radius:8px}
   .card{background:var(--card);padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
@@ -16,7 +16,7 @@
   .primary{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:white;padding:10px 14px;border-radius:10px;border:none;font-weight:600;cursor:pointer}
   .ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted);padding:8px 10px;border-radius:10px;cursor:pointer}
   /* Composer starts as a one-line input and grows with content */
-  .message-composer textarea{width:100%;height:40px;min-height:40px;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);resize:none;background:transparent;color:var(--text);font-size:15px;outline:none;overflow:hidden}
+  .message-composer textarea{width:90%;height:20px; border-radius:10px;border:1px solid rgba(255,255,255,0.04);resize:none;background:transparent;color:var(--text);font-size:15px;outline:none;overflow:hidden}
   .message-composer textarea:focus{box-shadow:0 6px 18px rgba(139,92,246,0.08);border-color:rgba(139,92,246,0.18)}
   .status{color:var(--muted)}
   /* Layout: sidebar + main. Use full height and internal scrolling only. */
@@ -101,6 +101,13 @@
       .msg.user .bubble{background:#172033;color:var(--text);border-bottom-right-radius:4px}
       .msg.assistant{justify-content:flex-start}
       .msg.assistant .bubble{background:#0f1724;color:var(--text);border-bottom-left-radius:4px}
+      /* Dynamic bubble modifiers */
+      .bubble.short{max-width:48%;padding:8px}
+      .bubble.long{max-width:96%}
+      .bubble.code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,monospace;background:#071026;border:1px solid rgba(139,92,246,0.08);padding:14px}
+      .bubble.question{box-shadow:0 8px 30px rgba(139,92,246,0.04);border:1px solid rgba(139,92,246,0.12)}
+      .bubble.link{text-decoration:underline;color:var(--accent-2)}
+      .bubble{transition:all 180ms ease}
       .bubble .meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:12px;color:var(--muted)}
       .bubble .content{font-size:15px;line-height:1.4}
     </style>
@@ -112,7 +119,7 @@
         {% for m in messages %}
           <div class="msg {{ m.role }}">
             <div class="bubble">
-              <div class="meta"><span class="role">{{ m.role|capfirst }}</span><span class="time">{{ m.created_at|date:"Y-m-d H:i" }}</span></div>
+              <div class="meta"><span class="time">{{ m.created_at|date:"Y-m-d H:i" }}</span></div>
               <div class="content">{{ m.content|linebreaksbr }}</div>
             </div>
           </div>
@@ -159,6 +166,33 @@ function autosizeTextarea(el){
 msgEl.addEventListener('input', ()=>autosizeTextarea(msgEl));
 // initialize
 autosizeTextarea(msgEl);
+
+// Apply dynamic bubble styles based on message content
+function applyBubbleStyle(bubbleEl, text, role){
+  if(!bubbleEl) return;
+  // remove existing modifier classes
+  bubbleEl.classList.remove('short','long','code','question','link');
+  const t = (text || '').trim();
+  if(!t) return;
+  const lines = t.split(/\r?\n/);
+  const len = t.length;
+  const hasCode = /```/.test(t) || /<code>/.test(t);
+  const hasLink = /https?:\/\//.test(t);
+  const isQuestion = /\?/.test(t) && t.trim().endsWith('?');
+
+  if(hasCode){ bubbleEl.classList.add('code'); }
+  if(hasLink){ bubbleEl.classList.add('link'); }
+  if(isQuestion){ bubbleEl.classList.add('question'); }
+  if(lines.length > 3 || len > 220){ bubbleEl.classList.add('long'); }
+  else if(len < 80 && lines.length === 1){ bubbleEl.classList.add('short'); }
+}
+
+// Process existing server-rendered messages on load
+document.querySelectorAll('#messages .msg').forEach(msg => {
+  const bubble = msg.querySelector('.bubble');
+  const contentEl = bubble && bubble.querySelector('.content');
+  if(contentEl) applyBubbleStyle(bubble, contentEl.textContent, msg.className);
+});
 
 // Conversation item menu handling (rename/delete)
 function getCookie(name) {
@@ -294,7 +328,13 @@ modalConfirm.addEventListener('click', async ()=>{
 async function appendMessage(role, text){
   const div = document.createElement('div');
   div.className = 'msg ' + role;
-  div.innerHTML = '<strong>' + role + ':</strong> ' + text;
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  const content = document.createElement('div');
+  content.className = 'content';
+  content.textContent = text;
+  bubble.appendChild(content);
+  div.appendChild(bubble);
   messagesEl.appendChild(div);
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
@@ -332,7 +372,13 @@ sendBtn.addEventListener('click', async ()=>{
     const assistantDiv = document.createElement('div');
     assistantDiv.className = 'msg assistant';
     assistantDiv.dataset.streaming = '1';
-    assistantDiv.innerHTML = '<strong>assistant:</strong> ';
+    const assistantBubble = document.createElement('div');
+    assistantBubble.className = 'bubble';
+    const assistantContent = document.createElement('div');
+    assistantContent.className = 'content';
+    assistantContent.textContent = '';
+    assistantBubble.appendChild(assistantContent);
+    assistantDiv.appendChild(assistantBubble);
     messagesEl.appendChild(assistantDiv);
     messagesEl.scrollTop = messagesEl.scrollHeight;
 
@@ -349,7 +395,9 @@ sendBtn.addEventListener('click', async ()=>{
           if(line.startsWith('data:')){
             const data = line.replace(/^data:\s?/, '');
             assistantText += data;
-            assistantDiv.innerHTML = '<strong>assistant:</strong> ' + assistantText;
+            // update assistant bubble content safely
+            const contentEl = assistantDiv.querySelector('.content');
+            if(contentEl) contentEl.textContent = assistantText;
             messagesEl.scrollTop = messagesEl.scrollHeight;
           } else if(line.startsWith('event: done')){
             assistantDiv.dataset.streaming = '0';
