@@ -3,7 +3,7 @@
 <style>
   .chat-wrap{display:flex;flex-direction:column;gap:12px}
   /* Make chat area take available vertical space and allow internal scrolling */
-  .chat-messages{overflow:auto;padding:12px;border-radius:10px;background:#071226;color:var(--text)}
+  .chat-messages{overflow:auto;padding:12px;border-radius:10px;background:#071226;color:var(--text);max-height:calc(100vh - 360px)}
   .msg{padding:10px;border-radius:10px;margin-bottom:8px;color:var(--text)}
   .msg.user{background:#1f2937;text-align:right;color:var(--text)}
   .msg.assistant{background:#0b1220;color:var(--text)}
@@ -105,21 +105,7 @@
       .bubble .content{font-size:15px;line-height:1.4}
     </style>
 
-    <div class="conversation-header">
-      <div>
-        <h1 class="conversation-title">{{ conversation.title|default:"Conversation" }}</h1>
-        <div class="conversation-meta">Conversation ID: {{ conversation.id }}</div>
-      </div>
-      <div class="conv-actions">
-        <form class="rename-form" method="post" action="{% url 'chat-rename' conversation.id %}">{% csrf_token %}
-          <input class="rename-input" name="title" placeholder="Rename..." value="{{ conversation.title }}">
-          <button class="rename-btn" type="submit">Save</button>
-        </form>
-        <form method="post" action="{% url 'chat-delete' conversation.id %}" onsubmit="return confirm('Delete this conversation?');">{% csrf_token %}
-          <button class="delete-btn" type="submit">Delete</button>
-        </form>
-      </div>
-    </div>
+    <!-- Removed in-chat title/header and Save/Delete buttons per user request -->
 
     <div class="chat-wrap">
       <div id="messages" class="chat-messages" data-conversation-id="{{ conversation.id }}">
@@ -282,19 +268,22 @@ modalConfirm.addEventListener('click', async ()=>{
   } else if(mode === 'delete'){
     try{
       const res = await fetch(url, {method:'POST', headers:{'X-CSRFToken': csrftoken}});
-      if(res.ok){
-        // if deleting current conversation, redirect to index
-        const currentId = messagesEl.dataset.conversationId;
-        if(itemId && currentId && String(itemId) === String(currentId)){
-          window.location.href = '{% url "chat-index" %}';
-        } else {
-          // remove the sidebar item
+        if(res.ok){
+          // close modal
+          modal.style.display = 'none';
+          // remove the sidebar item (if present)
           const menuItem = document.querySelector('.conv-menu[data-id="'+itemId+'"]');
           if(menuItem){
             const wrapper = menuItem.closest('.menu-item');
             if(wrapper) wrapper.remove();
           }
-        }
+          // after delete, open the first remaining conversation if any, otherwise go to index
+          const firstLink = document.querySelector('.conv-link');
+          if(firstLink){
+            window.location.href = firstLink.href;
+          } else {
+            window.location.href = '{% url "chat-index" %}';
+          }
       } else {
         alert('Delete failed');
       }
