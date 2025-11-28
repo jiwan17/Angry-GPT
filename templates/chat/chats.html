@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center">
+  <h1>Your Chats</h1>
+  <div><a href="{% url 'chat-new' %}" style="background:linear-gradient(90deg,#6d28d9,#8b5cf6);color:#fff;padding:8px 12px;border-radius:8px;text-decoration:none">+ New Chat</a></div>
+</div>
+<div style="margin-top:12px;color:#6b7280">Manage your conversations. Click one to open the chat.</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:16px">
+  {% for c in conversations %}
+    <div style="background:#fff;padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(11,18,32,0.04)">
+      <a href="{% url 'chat-detail' c.id %}" style="font-weight:600;display:block;margin-bottom:8px">{{ c.title|default:"Conversation" }}</a>
+      <div style="color:#6b7280;font-size:13px">Created: {{ c.created_at }}</div>
+    </div>
+  {% empty %}
+    <div>No conversations yet</div>
+  {% endfor %}
+</div>
+
+<p style="margin-top:18px"><a href="{% url 'logout' %}">Logout</a></p>
+{% endblock %}
